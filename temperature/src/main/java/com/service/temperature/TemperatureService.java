@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+@javax.jws.WebService
+@org.springframework.stereotype.Service
 public class TemperatureService {
 
     public TemperatureResponse getTemperatures(DataRequest dataRequest) throws Fault{
