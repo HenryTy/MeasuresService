@@ -1,0 +1,81 @@
+<?xml version='1.0' encoding='UTF-8'?><wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://temperature.service.com/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns1="http://schemas.xmlsoap.org/soap/http" name="TemperatureServiceService" targetNamespace="http://temperature.service.com/">
+  <wsdl:types>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:tns="http://temperature.service.com/" attributeFormDefault="unqualified" elementFormDefault="unqualified" targetNamespace="http://temperature.service.com/">
+  <xs:element name="getTemperatures" type="tns:getTemperatures"/>
+  <xs:element name="getTemperaturesResponse" type="tns:getTemperaturesResponse"/>
+  <xs:complexType name="getTemperatures">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="arg0" type="tns:dataRequest"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="dataRequest">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="from" type="xs:anySimpleType"/>
+      <xs:element name="roomNr" type="xs:int"/>
+      <xs:element minOccurs="0" name="to" type="xs:anySimpleType"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="getTemperaturesResponse">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="return" type="tns:temperatureResponse"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="temperatureResponse">
+    <xs:sequence>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="dates" nillable="true" type="xs:anySimpleType"/>
+      <xs:element maxOccurs="unbounded" minOccurs="0" name="temperatures" nillable="true" type="xs:double"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="Fault" type="tns:Fault"/>
+  <xs:complexType name="Fault">
+    <xs:sequence>
+      <xs:element minOccurs="0" name="text" type="xs:string"/>
+      <xs:element minOccurs="0" name="code" type="xs:int"/>
+      <xs:element minOccurs="0" name="message" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>
+  </wsdl:types>
+  <wsdl:message name="getTemperatures">
+    <wsdl:part element="tns:getTemperatures" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="Fault">
+    <wsdl:part element="tns:Fault" name="Fault">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="getTemperaturesResponse">
+    <wsdl:part element="tns:getTemperaturesResponse" name="parameters">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:portType name="TemperatureService">
+    <wsdl:operation name="getTemperatures">
+      <wsdl:input message="tns:getTemperatures" name="getTemperatures">
+    </wsdl:input>
+      <wsdl:output message="tns:getTemperaturesResponse" name="getTemperaturesResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:Fault" name="Fault">
+    </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="TemperatureServiceServiceSoapBinding" type="tns:TemperatureService">
+    <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="getTemperatures">
+      <soap:operation soapAction="" style="document"/>
+      <wsdl:input name="getTemperatures">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="getTemperaturesResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="Fault">
+        <soap:fault name="Fault" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="TemperatureServiceService">
+    <wsdl:port binding="tns:TemperatureServiceServiceSoapBinding" name="TemperatureServicePort">
+      <soap:address location="http://localhost:8080/soap-api/service/temperature"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

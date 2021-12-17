@@ -1,0 +1,125 @@
+openapi: 3.0.1
+info:
+  title: Measures Service
+  description: Micro service to get temperature and power measures in building
+  contact:
+    email: supportm@measures.pl
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.0
+servers:
+- url: http://localhost:8090
+tags:
+- name: measures
+  description: Measures which you can get
+paths:
+  /measures:
+    post:
+      tags:
+      - measures
+      summary: Measures
+      operationId: getMeasures
+      requestBody:
+        description: Time and place for measures
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasuresRequest'
+        required: true
+      responses:
+        400:
+          description: Problem during processing of the request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionResponse'
+
+components:
+  schemas:
+    TemperatureRequest:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        roomNr:
+          type: integer
+    TemperatureResponse:
+      type: object
+      properties:
+        measuresId:
+          type: string
+        dates:
+          type: array
+          items:
+            type: string
+            format: date-time
+        temperatures:
+          type: array
+          items:
+            type: number
+    PowerRequest:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        roomNr:
+          type: integer
+    PowerResponse:
+      type: object
+      properties:
+        measuresId:
+          type: string
+        dates:
+          type: array
+          items:
+            type: string
+            format: date-time
+        powers:
+          type: array
+          items:
+            type: number
+    MeasuresRequest:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        roomNr:
+          type: integer
+    MeasuresResponse:
+      type: object
+      properties:
+        measuresId:
+          type: string
+        measures:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date-time
+              temperature:
+                type: number
+              power:
+                type: number
+    ExceptionResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        message:
+          type: string
