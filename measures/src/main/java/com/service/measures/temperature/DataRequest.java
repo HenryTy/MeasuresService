@@ -41,8 +41,6 @@ import javax.xml.bind.annotation.XmlType;
     "roomNr",
     "to"
 })
-@XmlRootElement(name = "dataRequest", namespace =
-        "http://temperature.service.com/")
 public class DataRequest {
 
     protected Object from;
