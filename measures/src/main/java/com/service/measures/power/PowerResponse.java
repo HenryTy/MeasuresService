@@ -12,7 +12,8 @@
 
 package com.service.measures.power;
 
-import com.google.gson.annotations.SerializedName;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -25,10 +26,10 @@ import java.util.Objects;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-12-20T11:54:34.525205900+01:00[Europe/Warsaw]")
 public class PowerResponse {
-  @SerializedName("dates")
+  @JsonProperty("dates")
   private List<OffsetDateTime> dates = null;
 
-  @SerializedName("powers")
+  @JsonProperty("powers")
   private List<Double> powers = null;
 
   public PowerResponse dates(List<OffsetDateTime> dates) {
@@ -52,7 +53,16 @@ public class PowerResponse {
     return dates;
   }
 
-  public void setDates(List<OffsetDateTime> dates) {
+  /*public void setDates(List<OffsetDateTime> dates) {
+    this.dates = dates;
+  }*/
+
+  @JsonSetter("dates")
+  public void setDates(List<String> datesStr) {
+    List<OffsetDateTime> dates = new ArrayList<>();
+    for(String dStr : datesStr) {
+      dates.add(OffsetDateTime.parse(dStr + "+00:00"));
+    }
     this.dates = dates;
   }
 

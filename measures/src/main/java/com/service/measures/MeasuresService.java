@@ -179,7 +179,7 @@ public class MeasuresService extends RouteBuilder {
                             MeasuresResponse measuresResponse = new MeasuresResponse();
                             measuresResponse.setMeasuresId(measuresId);
                             measuresResponse.setMeasures(measures);
-                            exchange.getMessage().setBody(allMeasures);
+                            exchange.getMessage().setBody(measuresResponse);
                         }
                 )
                 .to("direct:notification");
