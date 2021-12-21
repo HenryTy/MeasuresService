@@ -7,21 +7,28 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.service.measures.model.ExceptionResponse;
 import com.service.measures.model.MeasuresRequest;
 import com.service.measures.model.MeasuresResponse;
 import com.service.measures.model.MeasuresResponseMeasures;
 import com.service.measures.power.PowerRequest;
 import com.service.measures.power.PowerResponse;
+import com.service.measures.state.ProcessingEvent;
+import com.service.measures.state.ProcessingState;
+import com.service.measures.state.StateService;
 import com.service.measures.temperature.DataRequest;
 import com.service.measures.temperature.GetTemperatures;
 import com.service.measures.temperature.GetTemperaturesResponse;
 import com.service.measures.temperature.TemperatureResponse;
+import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.converter.jaxb.JaxbDataFormat;
+import org.apache.camel.http.base.HttpOperationFailedException;
 import org.apache.camel.model.dataformat.JsonLibrary;
 import org.apache.camel.model.rest.RestBindingMode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.ws.soap.client.SoapFaultClientException;
 
 import javax.xml.datatype.DatatypeConfigurationException;
 import javax.xml.datatype.DatatypeFactory;
@@ -36,8 +43,16 @@ public class MeasuresService extends RouteBuilder {
     @Autowired
     JoinMeasuresService joinMeasuresService;
 
+    @Autowired
+    StateService powerStateService;
+
+    @Autowired
+    StateService temperatureStateService;
+
+
     @Override
     public void configure() throws Exception {
+        exceptionHandlers();
         gateway();
         temperatures();
         powers();
@@ -94,16 +109,51 @@ public class MeasuresService extends RouteBuilder {
         from("kafka:MeasuresReqTopic?brokers=localhost:9092").routeId("getTemperatures")
                 .log("fired getTemperatures")
                 .unmarshal().json(JsonLibrary.Jackson, MeasuresRequest.class)
-                .process((exchange) ->
-                {exchange.getMessage().setBody(
+                .process((exchange) -> {
+                    String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                    ProcessingState previousState =
+                            temperatureStateService.sendEvent(measuresId, ProcessingEvent.START);
+                    exchange.getMessage().setHeader("previousState", previousState);
+                    exchange.getMessage().setBody(
                         prepareTemperatureRequest(exchange.getMessage().getBody(MeasuresRequest.class)));
                 } )
-                .marshal(jaxbTemperature)
-                .to("spring-ws:http://localhost:8080/soap-api/service/temperature")
-                .to("stream:out")
-                .unmarshal(jaxbTemperature)
-                .marshal().json()
-                .to("kafka:TemperaturesTopic?brokers=localhost:9092");
+                .choice()
+                .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
+                    .marshal(jaxbTemperature)
+                    .to("spring-ws:http://localhost:8080/soap-api/service/temperature")
+                    .unmarshal(jaxbTemperature)
+                    .marshal().json()
+                    .process((exchange) -> {
+                        String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                        ProcessingState previousState =
+                                temperatureStateService.sendEvent(measuresId, ProcessingEvent.FINISH);
+                        exchange.getMessage().setHeader("previousState", previousState);
+                    } )
+                .end()
+                .choice()
+                .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
+                    .to("kafka:TemperaturesTopic?brokers=localhost:9092")
+                .otherwise()
+                    .to("direct:temperaturesCompensationAction")
+                .endChoice();
+
+        from("kafka:PowersFailTopic?brokers=localhost:9092").routeId("temperaturesCompensation")
+                .log("fired temperaturesCompensation")
+                .unmarshal().json(JsonLibrary.Jackson, ExceptionResponse.class)
+                .process((exchange) -> {
+                    String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                    ProcessingState previousState = temperatureStateService.sendEvent(measuresId,
+                            ProcessingEvent.CANCEL);
+                    exchange.getMessage().setHeader("previousState", previousState);
+                })
+                .choice()
+                .when(header("previousState").isEqualTo(ProcessingState.FINISHED))
+                .to("direct:temperaturesCompensationAction")
+                .endChoice();
+
+        from("direct:temperaturesCompensationAction").routeId("temperaturesCompensationAction")
+                .log("temperaturesCompensationAction fired")
+                .to("stream:out");
 
     }
 
@@ -111,15 +161,54 @@ public class MeasuresService extends RouteBuilder {
         from("kafka:MeasuresReqTopic?brokers=localhost:9092").routeId("getPowers")
                 .log("fired getPowers")
                 .unmarshal().json(JsonLibrary.Jackson, MeasuresRequest.class)
-                .process((exchange) ->
-                {exchange.getMessage().setBody(
+                .process((exchange) -> {
+                    String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                    ProcessingState previousState =
+                            powerStateService.sendEvent(measuresId, ProcessingEvent.START);
+                    exchange.getMessage().setHeader("previousState", previousState);
+                    exchange.getMessage().setBody(
                         preparePowerRequest(exchange.getMessage().getBody(MeasuresRequest.class)));
                 } )
-                .marshal().json()
+                .choice()
+                .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
+                    .marshal().json()
+                    .removeHeaders("Camel*")
+                    .setHeader("accept", constant("*/*"))
+                    .to("rest:post:/service/power?host=localhost:8081")
+                    .process((exchange) -> {
+                        String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                        ProcessingState previousState =
+                                powerStateService.sendEvent(measuresId, ProcessingEvent.FINISH);
+                        exchange.getMessage().setHeader("previousState", previousState);
+                    } )
+                .end()
+                .choice()
+                .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
+                    .to("kafka:PowersTopic?brokers=localhost:9092")
+                .otherwise()
+                    .to("direct:powersCompensationAction")
+                .endChoice();
+
+        from("kafka:TemperaturesFailTopic?brokers=localhost:9092").routeId("powersCompensation")
+                .log("fired powersCompensation")
+                .unmarshal().json(JsonLibrary.Jackson, ExceptionResponse.class)
+                .process((exchange) -> {
+                    String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                    ProcessingState previousState = powerStateService.sendEvent(measuresId,
+                            ProcessingEvent.CANCEL);
+                    exchange.getMessage().setHeader("previousState", previousState);
+                })
+                .choice()
+                .when(header("previousState").isEqualTo(ProcessingState.FINISHED))
+                .to("direct:powersCompensationAction")
+                .endChoice();
+
+        from("direct:powersCompensationAction").routeId("powersCompensationAction")
+                .log("powersCompensationAction fired")
                 .removeHeaders("Camel*")
                 .setHeader("accept", constant("*/*"))
-                .to("rest:post:/service/power?host=localhost:8081")
-                .to("kafka:PowersTopic?brokers=localhost:9092");
+                .to("rest:post:/service/cancel?host=localhost:8081")
+                .to("stream:out");
     }
 
     private void join() {
@@ -187,6 +276,37 @@ public class MeasuresService extends RouteBuilder {
         from("direct:notification").routeId("notification")
                 .log("fired notification")
                 .to("stream:out");
+    }
+
+    private void exceptionHandlers() {
+        onException(HttpOperationFailedException.class)
+                .process((exchange) -> {
+                    ExceptionResponse er = new ExceptionResponse();
+                    er.setTimestamp(OffsetDateTime.now());
+                    Exception cause =
+                            exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
+                    er.setMessage(cause.getMessage());
+                            exchange.getMessage().setBody(er);
+                        }
+                )
+                .marshal().json()
+                .to("kafka:PowersFailTopic?brokers=localhost:9092")
+                .handled(true);
+
+        onException(SoapFaultClientException.class)
+                .process((exchange) -> {
+                            ExceptionResponse er = new ExceptionResponse();
+                            er.setTimestamp(OffsetDateTime.now());
+                            Exception cause =
+                                    exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
+                            er.setMessage(cause.getMessage());
+                            exchange.getMessage().setBody(er);
+                        }
+                )
+                .marshal().json()
+                .to("kafka:TemperaturesFailTopic?brokers=localhost:9092")
+                .handled(true);
+
     }
 
     private GetTemperatures prepareTemperatureRequest(MeasuresRequest measuresRequest) {
