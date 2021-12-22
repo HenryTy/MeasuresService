@@ -31,6 +31,9 @@ public class MeasuresResponse {
   @JsonProperty("measures")
   private List<MeasuresResponseMeasures> measures = null;
 
+  @JsonProperty("errorMessage")
+  private String errorMessage = null;
+
   public MeasuresResponse measuresId(String measuresId) {
     this.measuresId = measuresId;
     return this;
@@ -73,6 +76,22 @@ public class MeasuresResponse {
     this.measures = measures;
   }
 
+  public MeasuresResponse errorMessage(String errorMessage) {
+    this.errorMessage= errorMessage;
+    return this;
+  }
+
+  /**
+   * Get errorMessage
+   * @return errorMessage
+   **/
+  public String getErrorMessage() {
+    return errorMessage;
+  }
+
+  public void setErrorMessage(String errorMessage) {
+    this.errorMessage = errorMessage;
+  }
 
   @Override
   public boolean equals(Object o) {
@@ -84,12 +103,13 @@ public class MeasuresResponse {
     }
     MeasuresResponse measuresResponse = (MeasuresResponse) o;
     return Objects.equals(this.measures, measuresResponse.measures) &&
-            Objects.equals(this.measuresId, measuresResponse.measuresId);
+            Objects.equals(this.measuresId, measuresResponse.measuresId) &&
+            Objects.equals(this.errorMessage, measuresResponse.errorMessage);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(measures, measuresId);
+    return Objects.hash(measures, measuresId, errorMessage);
   }
 
 
@@ -99,6 +119,7 @@ public class MeasuresResponse {
     sb.append("class MeasuresResponse {\n");
     sb.append("    measuresId: ").append(toIndentedString(measuresId)).append("\n");
     sb.append("    measures: ").append(toIndentedString(measures)).append("\n");
+    sb.append("    errorMessage: ").append(toIndentedString(errorMessage)).append("\n");
     sb.append("}");
     return sb.toString();
   }

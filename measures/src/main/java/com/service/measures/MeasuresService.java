@@ -4,10 +4,12 @@ import static org.apache.camel.model.rest.RestParamType.body;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.service.measures.model.ExceptionResponse;
+import com.mongodb.client.MongoIterable;
+import com.mongodb.client.model.Filters;
 import com.service.measures.model.MeasuresRequest;
 import com.service.measures.model.MeasuresResponse;
 import com.service.measures.model.MeasuresResponseMeasures;
@@ -22,10 +24,13 @@ import com.service.measures.temperature.GetTemperaturesResponse;
 import com.service.measures.temperature.TemperatureResponse;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.mongodb.MongoDbConstants;
 import org.apache.camel.converter.jaxb.JaxbDataFormat;
 import org.apache.camel.http.base.HttpOperationFailedException;
 import org.apache.camel.model.dataformat.JsonLibrary;
 import org.apache.camel.model.rest.RestBindingMode;
+import org.bson.Document;
+import org.bson.types.Decimal128;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.ws.soap.client.SoapFaultClientException;
@@ -48,6 +53,9 @@ public class MeasuresService extends RouteBuilder {
 
     @Autowired
     StateService temperatureStateService;
+
+    @Autowired
+    StateService measuresStateService;
 
 
     @Override
@@ -77,13 +85,18 @@ public class MeasuresService extends RouteBuilder {
                 .post("/download").description("Download measures").type(MeasuresRequest.class).outType(MeasuresResponse.class)
                 .param().name("body").type(body).description("Time and place for measures").endParam()
                 .responseMessage().code(200).message("Measures successfully downloaded").endResponseMessage()
-                .to("direct:downloadMeasures");
+                .to("direct:downloadMeasures")
+                .get("/view/{measuresId}").description("View downloaded measures").outType(MeasuresResponse.class)
+                .to("direct:viewMeasures")
+                ;
 
         from("direct:downloadMeasures").routeId("downloadMeasures")
                 .log("downloadMeasures fired")
                 .process((exchange) -> {
+                    String measuresId = measureIdentifierService.getMeasureIdentifier();
                     exchange.getMessage().setHeader("measuresId",
-                            measureIdentifierService.getMeasureIdentifier());
+                            measuresId);
+                    measuresStateService.sendEvent(measuresId, ProcessingEvent.START);
                 })
                 .to("direct:MeasuresRequest")
                 .to("direct:measuresRequester");
@@ -101,6 +114,24 @@ public class MeasuresService extends RouteBuilder {
                 .log("MeasuresReqTopic fired")
                 .marshal().json()
                 .to("kafka:MeasuresReqTopic?brokers=localhost:9092");
+
+        from("direct:viewMeasures").routeId("viewMeasures")
+                .log("viewMeasures fired")
+                .process((exchange -> {
+                    String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                    exchange.getMessage().setHeader(MongoDbConstants.CRITERIA,
+                            Filters.eq("measuresId", measuresId));
+                }))
+                .to("mongodb:mongoClient?database=measures_service&collection=downloaded_results&operation=findAll&outputType=MongoIterable")
+                .process(exchange -> {
+                    MongoIterable<Document> results = (MongoIterable<Document>) exchange.getMessage().getBody();
+                    exchange.getMessage().setBody(new MeasuresResponse());
+                    for(Document d : results) {
+                        exchange.getMessage().setBody(mongoDocumentToMeasuresResponse(d));
+                        break;
+                    }
+                })
+                ;
     }
 
     private void temperatures() {
@@ -139,7 +170,7 @@ public class MeasuresService extends RouteBuilder {
 
         from("kafka:PowersFailTopic?brokers=localhost:9092").routeId("temperaturesCompensation")
                 .log("fired temperaturesCompensation")
-                .unmarshal().json(JsonLibrary.Jackson, ExceptionResponse.class)
+                .unmarshal().json(JsonLibrary.Jackson, MeasuresResponse.class)
                 .process((exchange) -> {
                     String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
                     ProcessingState previousState = temperatureStateService.sendEvent(measuresId,
@@ -191,7 +222,7 @@ public class MeasuresService extends RouteBuilder {
 
         from("kafka:TemperaturesFailTopic?brokers=localhost:9092").routeId("powersCompensation")
                 .log("fired powersCompensation")
-                .unmarshal().json(JsonLibrary.Jackson, ExceptionResponse.class)
+                .unmarshal().json(JsonLibrary.Jackson, MeasuresResponse.class)
                 .process((exchange) -> {
                     String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
                     ProcessingState previousState = powerStateService.sendEvent(measuresId,
@@ -269,25 +300,56 @@ public class MeasuresService extends RouteBuilder {
                             measuresResponse.setMeasuresId(measuresId);
                             measuresResponse.setMeasures(measures);
                             exchange.getMessage().setBody(measuresResponse);
+                            measuresStateService.sendEvent(measuresId, ProcessingEvent.FINISH);
                         }
                 )
                 .to("direct:notification");
 
+        from("kafka:TemperaturesFailTopic?brokers=localhost:9092").routeId("cancelDueToTempError")
+                .log("fired cancelDueToTempError")
+                .unmarshal().json(JsonLibrary.Jackson, MeasuresResponse.class)
+                .process((exchange) -> {
+                    String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                    ProcessingState previousState = measuresStateService.sendEvent(measuresId,
+                            ProcessingEvent.CANCEL);
+                    exchange.getMessage().setHeader("previousState", previousState);
+                })
+                .choice()
+                .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
+                .to("direct:notification")
+                .endChoice();
+
+        from("kafka:PowersFailTopic?brokers=localhost:9092").routeId("cancelDueToPowerError")
+                .log("fired cancelDueToPowerError")
+                .unmarshal().json(JsonLibrary.Jackson, MeasuresResponse.class)
+                .process((exchange) -> {
+                    String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                    ProcessingState previousState = measuresStateService.sendEvent(measuresId,
+                            ProcessingEvent.CANCEL);
+                    exchange.getMessage().setHeader("previousState", previousState);
+                })
+                .choice()
+                .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
+                .to("direct:notification")
+                .endChoice();
+
         from("direct:notification").routeId("notification")
                 .log("fired notification")
+                .to("mongodb:mongoClient?database=measures_service&collection=downloaded_results&operation=insert")
                 .to("stream:out");
     }
 
     private void exceptionHandlers() {
         onException(HttpOperationFailedException.class)
                 .process((exchange) -> {
-                    ExceptionResponse er = new ExceptionResponse();
-                    er.setTimestamp(OffsetDateTime.now());
+                    String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                    MeasuresResponse er = new MeasuresResponse();
+                    er.setMeasuresId(measuresId);
                     Exception cause =
                             exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
-                    er.setMessage(cause.getMessage());
-                            exchange.getMessage().setBody(er);
-                        }
+                    er.setErrorMessage(cause.getMessage());
+                    exchange.getMessage().setBody(er);
+                }
                 )
                 .marshal().json()
                 .to("kafka:PowersFailTopic?brokers=localhost:9092")
@@ -295,11 +357,12 @@ public class MeasuresService extends RouteBuilder {
 
         onException(SoapFaultClientException.class)
                 .process((exchange) -> {
-                            ExceptionResponse er = new ExceptionResponse();
-                            er.setTimestamp(OffsetDateTime.now());
+                            String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
+                            MeasuresResponse er = new MeasuresResponse();
+                            er.setMeasuresId(measuresId);
                             Exception cause =
                                     exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class);
-                            er.setMessage(cause.getMessage());
+                            er.setErrorMessage(cause.getMessage());
                             exchange.getMessage().setBody(er);
                         }
                 )
@@ -348,5 +411,37 @@ public class MeasuresService extends RouteBuilder {
             e.printStackTrace();
         }
         return null;
+    }
+
+    private MeasuresResponse mongoDocumentToMeasuresResponse(Document document) {
+        MeasuresResponse measuresResponse = new MeasuresResponse();
+        measuresResponse.setMeasuresId(document.getString("measuresId"));
+        measuresResponse.setErrorMessage(document.getString("errorMessage"));
+        List<Document> documentMeasures = document.getList("measures", Document.class);
+        List<MeasuresResponseMeasures> measures = new ArrayList<>();
+        if(documentMeasures != null) {
+            for (Document docMes : documentMeasures) {
+                MeasuresResponseMeasures mes = new MeasuresResponseMeasures();
+                mes.setDate(mongoDocumentToOffsetDateTime(docMes.get("date", Document.class)));
+                mes.setTemperature(docMes.get("temperature", Decimal128.class).bigDecimalValue());
+                mes.setPower(docMes.get("power", Decimal128.class).bigDecimalValue());
+                measures.add(mes);
+            }
+        }
+        measuresResponse.setMeasures(measures);
+        return measuresResponse;
+    }
+
+    private OffsetDateTime mongoDocumentToOffsetDateTime(Document document) {
+        return OffsetDateTime.of(
+                document.getInteger("year"),
+                document.getInteger("monthValue"),
+                document.getInteger("dayOfMonth"),
+                document.getInteger("hour"),
+                document.getInteger("minute"),
+                document.getInteger("second"),
+                document.getInteger("nano"),
+                ZoneOffset.UTC
+        );
     }
 }

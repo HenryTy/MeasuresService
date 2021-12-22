@@ -1,5 +1,9 @@
 package com.service.measures;
 
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import com.service.measures.state.ProcessingEvent;
 import com.service.measures.state.ProcessingState;
 import com.service.measures.state.StateMachineBuilder;
@@ -24,6 +28,7 @@ public class ApplicationConfig {
                 .add(ProcessingState.FINISHED,ProcessingEvent.CANCEL,ProcessingState.CANCELLED)
                 .add(ProcessingState.CANCELLED,ProcessingEvent.START,ProcessingState.CANCELLED)
                 .add(ProcessingState.CANCELLED,ProcessingEvent.FINISH,ProcessingState.CANCELLED)
+                .add(ProcessingState.CANCELLED,ProcessingEvent.CANCEL,ProcessingState.CANCELLED)
                 .add(ProcessingState.FINISHED,ProcessingEvent.COMPLETE,ProcessingState.COMPLETED)
                 .add(ProcessingState.CANCELLED,ProcessingEvent.COMPLETE,ProcessingState.COMPLETED)
         ;
@@ -34,5 +39,15 @@ public class ApplicationConfig {
     @Scope("prototype")
     public StateService stateService(@Qualifier("basicStateMachineBuilder") StateMachineBuilder stateMachineBuilder) {
         return new StateService (stateMachineBuilder);
+    }
+
+    @Bean
+    public MongoClient mongoClient() {
+        ConnectionString connectionString = new ConnectionString("mongodb://localhost:27017/measures_service");
+        MongoClientSettings mongoClientSettings = MongoClientSettings.builder()
+                .applyConnectionString(connectionString)
+                .build();
+
+        return MongoClients.create(mongoClientSettings);
     }
 }

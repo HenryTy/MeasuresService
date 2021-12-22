@@ -23,11 +23,31 @@ import java.util.Objects;
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-12-17T10:43:35.462286600+01:00[Europe/Warsaw]")
 public class ExceptionResponse {
+  @JsonProperty("measuresId")
+  private String measuresId = null;
+
   @JsonProperty("timestamp")
   private OffsetDateTime timestamp = null;
 
   @JsonProperty("message")
   private String message = null;
+
+  public ExceptionResponse measuresId(String measuresId) {
+    this.measuresId = measuresId;
+    return this;
+  }
+
+  /**
+   * Get measuresId
+   * @return measuresId
+   **/
+  public String getMeasuresId() {
+    return measuresId;
+  }
+
+  public void setMeasuresId(String measuresId) {
+    this.measuresId = measuresId;
+  }
 
   public ExceptionResponse timestamp(OffsetDateTime timestamp) {
     this.timestamp = timestamp;
@@ -74,12 +94,13 @@ public class ExceptionResponse {
     }
     ExceptionResponse exceptionResponse = (ExceptionResponse) o;
     return Objects.equals(this.timestamp, exceptionResponse.timestamp) &&
-        Objects.equals(this.message, exceptionResponse.message);
+        Objects.equals(this.message, exceptionResponse.message) &&
+            Objects.equals(this.measuresId, exceptionResponse.measuresId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(timestamp, message);
+    return Objects.hash(measuresId, timestamp, message);
   }
 
 
@@ -87,7 +108,7 @@ public class ExceptionResponse {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append("class ExceptionResponse {\n");
-
+    sb.append("    measuresId: ").append(toIndentedString(measuresId)).append("\n");
     sb.append("    timestamp: ").append(toIndentedString(timestamp)).append("\n");
     sb.append("    message: ").append(toIndentedString(message)).append("\n");
     sb.append("}");

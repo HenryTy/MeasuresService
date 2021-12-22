@@ -148,6 +148,11 @@
             <version>${camel.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.apache.camel.springboot</groupId>
+            <artifactId>camel-mongodb-starter</artifactId>
+            <version>${camel.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.webjars</groupId>
             <artifactId>swagger-ui</artifactId>
             <version>3.36.2</version>
