@@ -10,7 +10,7 @@
  * Do not edit the class manually.
  */
 
-package com.service.measures.model;
+package com.service.client.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -18,11 +18,11 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 
 /**
- * TemperatureRequest
+ * MeasuresRequest
  */
 
 @javax.annotation.Generated(value = "io.swagger.codegen.v3.generators.java.JavaClientCodegen", date = "2021-12-17T10:43:35.462286600+01:00[Europe/Warsaw]")
-public class TemperatureRequest {
+public class MeasuresRequest {
   @JsonProperty("from")
   private OffsetDateTime from = null;
 
@@ -32,7 +32,7 @@ public class TemperatureRequest {
   @JsonProperty("roomNr")
   private Integer roomNr = null;
 
-  public TemperatureRequest from(OffsetDateTime from) {
+  public MeasuresRequest from(OffsetDateTime from) {
     this.from = from;
     return this;
   }
@@ -45,11 +45,15 @@ public class TemperatureRequest {
     return from;
   }
 
-  public void setFrom(OffsetDateTime from) {
+  /*public void setFrom(OffsetDateTime from) {
     this.from = from;
+  }*/
+
+  public void setFrom(String fromStr) {
+    this.from = OffsetDateTime.parse(fromStr + "Z");
   }
 
-  public TemperatureRequest to(OffsetDateTime to) {
+  public MeasuresRequest to(OffsetDateTime to) {
     this.to = to;
     return this;
   }
@@ -62,11 +66,14 @@ public class TemperatureRequest {
     return to;
   }
 
-  public void setTo(OffsetDateTime to) {
+  /*public void setTo(OffsetDateTime to) {
     this.to = to;
+  }*/
+  public void setTo(String toStr) {
+    this.to = OffsetDateTime.parse(toStr + "Z");
   }
 
-  public TemperatureRequest roomNr(Integer roomNr) {
+  public MeasuresRequest roomNr(Integer roomNr) {
     this.roomNr = roomNr;
     return this;
   }
@@ -92,10 +99,10 @@ public class TemperatureRequest {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    TemperatureRequest temperatureRequest = (TemperatureRequest) o;
-    return Objects.equals(this.from, temperatureRequest.from) &&
-        Objects.equals(this.to, temperatureRequest.to) &&
-        Objects.equals(this.roomNr, temperatureRequest.roomNr);
+    MeasuresRequest measuresRequest = (MeasuresRequest) o;
+    return Objects.equals(this.from, measuresRequest.from) &&
+        Objects.equals(this.to, measuresRequest.to) &&
+        Objects.equals(this.roomNr, measuresRequest.roomNr);
   }
 
   @Override
@@ -107,7 +114,7 @@ public class TemperatureRequest {
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("class TemperatureRequest {\n");
+    sb.append("class MeasuresRequest {\n");
 
     sb.append("    from: ").append(toIndentedString(from)).append("\n");
     sb.append("    to: ").append(toIndentedString(to)).append("\n");

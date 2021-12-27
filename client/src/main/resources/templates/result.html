@@ -1,0 +1,24 @@
+<!DOCTYPE HTML>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Measurements</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head>
+<body>
+<h1>Result</h1>
+<p class="red-text" th:if="${error}">Incorrect request parameters</p>
+<table border="1" th:if="${measures}">
+    <tr>
+        <td>Time</td>
+        <td>Temperature [&#x2103;]</td>
+        <td>Power [W]</td>
+    </tr>
+    <tr th:each="mes :  ${measures}">
+        <td><p th:text="${mes.date}" /></td>
+        <td style="text-align:center"><p th:text="${#numbers.formatInteger(mes.temperature, 2)}" /></td>
+        <td style="text-align:center"><p th:text="${#numbers.formatInteger(mes.power, 4)}"/></td>
+    </tr>
+</table>
+<a href="/request">Change query parameters</a>
+</body>
+</html>

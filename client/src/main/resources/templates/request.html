@@ -1,0 +1,16 @@
+<!DOCTYPE HTML>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Measurements</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head>
+<body>
+<h1>Download power and temperature measurements</h1>
+<form action="#" th:action="@{/download}" th:object="${measuresRequest}" method="post">
+    <p>Start time: <input type="datetime-local" th:field="*{from}" /></p>
+    <p>End time: <input type="datetime-local" th:field="*{to}" /></p>
+    <p>Room number: <input type="number" th:field="*{roomNr}" /></p>
+    <p><input type="submit" value="Submit" /> <input type="reset" value="Reset" /></p>
+</form>
+</body>
+</html>

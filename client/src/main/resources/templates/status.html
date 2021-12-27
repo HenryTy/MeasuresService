@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html xmlns:th="https://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Measurements</title>
+</head>
+<body>
+    <p>Measurements download request has been sent</p>
+    <form th:action="@{/view/{id}(id=${measuresId})}" th:method="post">
+        <button type="submit">
+            View result
+        </button>
+    </form>
+    <br>
+    <button><a href="/request">Change query parameters</a></button>
+</body>
+</html>
