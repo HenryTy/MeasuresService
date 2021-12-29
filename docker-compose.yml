@@ -1,0 +1,62 @@
+version: '2'
+services:
+  mongo:
+    image: mongo
+    ports:
+      - "27017:27017"
+    restart: always
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+  kafka:
+    image: wurstmeister/kafka 
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+  gateway:
+    image: aznu/measures
+    ports:
+      - "8090:8090"
+    depends_on:
+      - kafka
+    environment:
+      MEASURES_KAFKA_SERVER: kafka:9092
+      MEASURES_MONGO_SERVER: mongo:27017
+      MEASURES_SERVICE_TYPE: gateway
+  micro-temperature:
+    image: aznu/measures
+    depends_on:
+      - kafka
+    environment:
+      MEASURES_KAFKA_SERVER: kafka:9092
+      MEASURES_TEMPERATURE_SERVER: temperature:8080
+      MEASURES_SERVICE_TYPE: temperatures
+  micro-power:
+    image: aznu/measures
+    depends_on:
+      - kafka
+    environment:
+      MEASURES_KAFKA_SERVER: kafka:9092
+      MEASURES_POWER_SERVER: power:8081
+      MEASURES_SERVICE_TYPE: powers
+  temperature:
+    image: aznu/temperature
+    ports:
+      - "8080:8080"
+  power:
+    image: aznu/power
+    ports:
+      - "8081:8081"
+  client:
+    image: aznu/client
+    ports:
+      - "8082:8082"
+    environment:
+      MEASURES_SERVICE_SERVER: gateway:8090

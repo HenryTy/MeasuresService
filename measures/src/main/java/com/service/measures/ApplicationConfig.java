@@ -17,6 +17,9 @@ import org.springframework.context.annotation.Scope;
 @Configuration
 public class ApplicationConfig {
 
+    @org.springframework.beans.factory.annotation.Value("${measures.mongo.server}")
+    private String measuresMongoServer;
+
     @Bean(name="basicStateMachineBuilder")
     public StateMachineBuilder basicStateMachineBuilder() {
         StateMachineBuilder smb = new StateMachineBuilder();
@@ -43,7 +46,7 @@ public class ApplicationConfig {
 
     @Bean
     public MongoClient mongoClient() {
-        ConnectionString connectionString = new ConnectionString("mongodb://localhost:27017/measures_service");
+        ConnectionString connectionString = new ConnectionString("mongodb://" + measuresMongoServer + "/measures_service");
         MongoClientSettings mongoClientSettings = MongoClientSettings.builder()
                 .applyConnectionString(connectionString)
                 .build();

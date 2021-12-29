@@ -57,14 +57,33 @@ public class MeasuresService extends RouteBuilder {
     @Autowired
     StateService measuresStateService;
 
+    @org.springframework.beans.factory.annotation.Value("${measures.kafka.server}")
+    private String measuresKafkaServer;
+
+    @org.springframework.beans.factory.annotation.Value("${measures.temperature.server}")
+    private String measuresTemperatureServer;
+
+    @org.springframework.beans.factory.annotation.Value("${measures.power.server}")
+    private String measuresPowerServer;
+
+    @org.springframework.beans.factory.annotation.Value("${measures.service.type}")
+    private String measuresServiceType;
 
     @Override
     public void configure() throws Exception {
         exceptionHandlers();
-        gateway();
-        temperatures();
-        powers();
-        join();
+        if(measuresServiceType.equals("all") || measuresServiceType.equals("gateway")) {
+            gateway();
+        }
+        if(measuresServiceType.equals("all") || measuresServiceType.equals("temperatures")) {
+            temperatures();
+        }
+        if(measuresServiceType.equals("all") || measuresServiceType.equals("powers")) {
+            powers();
+        }
+        if(measuresServiceType.equals("all") || measuresServiceType.equals("gateway")) {
+            join();
+        }
     }
 
     private void gateway() {
@@ -113,7 +132,7 @@ public class MeasuresService extends RouteBuilder {
         from("direct:MeasuresRequest").routeId("MeasuresRequest")
                 .log("MeasuresReqTopic fired")
                 .marshal().json()
-                .to("kafka:MeasuresReqTopic?brokers=localhost:9092");
+                .to("kafka:MeasuresReqTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType);
 
         from("direct:viewMeasures").routeId("viewMeasures")
                 .log("viewMeasures fired")
@@ -137,7 +156,7 @@ public class MeasuresService extends RouteBuilder {
     private void temperatures() {
         final JaxbDataFormat jaxbTemperature = new
                 JaxbDataFormat(TemperatureResponse.class.getPackage().getName());
-        from("kafka:MeasuresReqTopic?brokers=localhost:9092").routeId("getTemperatures")
+        from("kafka:MeasuresReqTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType).routeId("getTemperatures")
                 .log("fired getTemperatures")
                 .unmarshal().json(JsonLibrary.Jackson, MeasuresRequest.class)
                 .process((exchange) -> {
@@ -151,7 +170,7 @@ public class MeasuresService extends RouteBuilder {
                 .choice()
                 .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
                     .marshal(jaxbTemperature)
-                    .to("spring-ws:http://localhost:8080/soap-api/service/temperature")
+                    .to("spring-ws:http://" + measuresTemperatureServer + "/soap-api/service/temperature")
                     .unmarshal(jaxbTemperature)
                     .marshal().json()
                     .process((exchange) -> {
@@ -163,12 +182,12 @@ public class MeasuresService extends RouteBuilder {
                 .end()
                 .choice()
                 .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
-                    .to("kafka:TemperaturesTopic?brokers=localhost:9092")
+                    .to("kafka:TemperaturesTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType)
                 .otherwise()
                     .to("direct:temperaturesCompensationAction")
                 .endChoice();
 
-        from("kafka:PowersFailTopic?brokers=localhost:9092").routeId("temperaturesCompensation")
+        from("kafka:PowersFailTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType).routeId("temperaturesCompensation")
                 .log("fired temperaturesCompensation")
                 .unmarshal().json(JsonLibrary.Jackson, MeasuresResponse.class)
                 .process((exchange) -> {
@@ -189,7 +208,7 @@ public class MeasuresService extends RouteBuilder {
     }
 
     private void powers() {
-        from("kafka:MeasuresReqTopic?brokers=localhost:9092").routeId("getPowers")
+        from("kafka:MeasuresReqTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType).routeId("getPowers")
                 .log("fired getPowers")
                 .unmarshal().json(JsonLibrary.Jackson, MeasuresRequest.class)
                 .process((exchange) -> {
@@ -205,7 +224,7 @@ public class MeasuresService extends RouteBuilder {
                     .marshal().json()
                     .removeHeaders("Camel*")
                     .setHeader("accept", constant("*/*"))
-                    .to("rest:post:/service/power?host=localhost:8081")
+                    .to("rest:post:/service/power?host=" + measuresPowerServer)
                     .process((exchange) -> {
                         String measuresId = exchange.getMessage().getHeader("measuresId", String.class);
                         ProcessingState previousState =
@@ -215,12 +234,12 @@ public class MeasuresService extends RouteBuilder {
                 .end()
                 .choice()
                 .when(header("previousState").isNotEqualTo(ProcessingState.CANCELLED))
-                    .to("kafka:PowersTopic?brokers=localhost:9092")
+                    .to("kafka:PowersTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType)
                 .otherwise()
                     .to("direct:powersCompensationAction")
                 .endChoice();
 
-        from("kafka:TemperaturesFailTopic?brokers=localhost:9092").routeId("powersCompensation")
+        from("kafka:TemperaturesFailTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType).routeId("powersCompensation")
                 .log("fired powersCompensation")
                 .unmarshal().json(JsonLibrary.Jackson, MeasuresResponse.class)
                 .process((exchange) -> {
@@ -238,12 +257,12 @@ public class MeasuresService extends RouteBuilder {
                 .log("powersCompensationAction fired")
                 .removeHeaders("Camel*")
                 .setHeader("accept", constant("*/*"))
-                .to("rest:post:/service/cancel?host=localhost:8081")
+                .to("rest:post:/service/cancel?host=" + measuresPowerServer)
                 .to("stream:out");
     }
 
     private void join() {
-        from("kafka:TemperaturesTopic?brokers=localhost:9092").routeId("joinTemperatures")
+        from("kafka:TemperaturesTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType).routeId("joinTemperatures")
                 .log("fired joinTemperatures")
                 .unmarshal().json(JsonLibrary.Jackson, GetTemperaturesResponse.class)
                 .process(
@@ -260,7 +279,7 @@ public class MeasuresService extends RouteBuilder {
                 .when(header("isReady").isEqualTo(true)).to("direct:joinMeasures")
                 .endChoice();
 
-        from("kafka:PowersTopic?brokers=localhost:9092").routeId("joinPowers")
+        from("kafka:PowersTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType).routeId("joinPowers")
                 .log("fired joinPowers")
                 .unmarshal().json(JsonLibrary.Jackson, PowerResponse.class)
                 .process(
@@ -305,7 +324,7 @@ public class MeasuresService extends RouteBuilder {
                 )
                 .to("direct:notification");
 
-        from("kafka:TemperaturesFailTopic?brokers=localhost:9092").routeId("cancelDueToTempError")
+        from("kafka:TemperaturesFailTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType).routeId("cancelDueToTempError")
                 .log("fired cancelDueToTempError")
                 .unmarshal().json(JsonLibrary.Jackson, MeasuresResponse.class)
                 .process((exchange) -> {
@@ -319,7 +338,7 @@ public class MeasuresService extends RouteBuilder {
                 .to("direct:notification")
                 .endChoice();
 
-        from("kafka:PowersFailTopic?brokers=localhost:9092").routeId("cancelDueToPowerError")
+        from("kafka:PowersFailTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType).routeId("cancelDueToPowerError")
                 .log("fired cancelDueToPowerError")
                 .unmarshal().json(JsonLibrary.Jackson, MeasuresResponse.class)
                 .process((exchange) -> {
@@ -352,7 +371,7 @@ public class MeasuresService extends RouteBuilder {
                 }
                 )
                 .marshal().json()
-                .to("kafka:PowersFailTopic?brokers=localhost:9092")
+                .to("kafka:PowersFailTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType)
                 .handled(true);
 
         onException(SoapFaultClientException.class)
@@ -367,7 +386,7 @@ public class MeasuresService extends RouteBuilder {
                         }
                 )
                 .marshal().json()
-                .to("kafka:TemperaturesFailTopic?brokers=localhost:9092")
+                .to("kafka:TemperaturesFailTopic?brokers=" + measuresKafkaServer + "&groupId=" + measuresServiceType)
                 .handled(true);
 
     }

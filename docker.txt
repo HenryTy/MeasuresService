@@ -1,0 +1,13 @@
+mvn install dockerfile:build
+
+cd C:\Users\PIOTREK\IdeaProjects\MeasuresService
+docker image ls
+docker-compose up -d
+docker-compose logs --follow --tail=0
+docker-compose stop
+docker-compose scale micro-power=2
+
+docker exec -i -t measuresservice_kafka_1 /bin/bash
+cd /opt/kafka
+bin/kafka-topics.sh --describe --topic MeasuresReqTopic --zookeeper=zookeeper:2181
+bin/kafka-topics.sh --zookeeper=zookeeper:2181 --alter --topic MeasuresReqTopic --partitions 2

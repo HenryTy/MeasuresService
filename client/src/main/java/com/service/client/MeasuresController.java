@@ -17,6 +17,9 @@ import org.springframework.web.client.RestTemplate;
 @Controller
 public class MeasuresController {
 
+    @org.springframework.beans.factory.annotation.Value("${measures.service.server}")
+    private String measuresServiceServer;
+
     @GetMapping("/request")
     public String request(Model model) {
         model.addAttribute("measuresRequest", new MeasuresRequest());
@@ -26,7 +29,7 @@ public class MeasuresController {
     @PostMapping("/download")
     public String download(@ModelAttribute MeasuresRequest measuresRequest, RestTemplate restTemplate, Model model) {
         ResponseEntity<MeasuresResponse> re = restTemplate.postForEntity(
-                "http://localhost:8090/api/measures/download", measuresRequest, MeasuresResponse.class);
+                "http://" + measuresServiceServer + "/api/measures/download", measuresRequest, MeasuresResponse.class);
         model.addAttribute("measuresId", re.getBody().getMeasuresId());
         return "status";
     }
@@ -34,7 +37,7 @@ public class MeasuresController {
     @PostMapping("/view/{measuresId}")
     public String view(@PathVariable("measuresId") String measuresId, RestTemplate restTemplate, Model model) {
         ResponseEntity<MeasuresResponse> re = restTemplate.getForEntity(
-                "http://localhost:8090/api/measures/view/" + measuresId, MeasuresResponse.class);
+                "http://" + measuresServiceServer + "/api/measures/view/" + measuresId, MeasuresResponse.class);
         MeasuresResponse measuresResponse = re.getBody();
         if(measuresResponse.getErrorMessage() != null) {
             model.addAttribute("error", true);
